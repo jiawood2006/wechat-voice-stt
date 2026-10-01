@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""asr_dict — 管理语音转写纠错表（同音错词 → 正确词）
+
+用法:
+  asr_dict list                     列出全部规则
+  asr_dict add 打票 达标             追加/更新一条规则
+  asr_dict rm 打票                   删除一条规则
+  asr_dict test "测试这个反用速度"    试跑一条文本看效果
+
+表文件默认与脚本同目录的 asr_fix_dict.json（可用 ASR_FIX_DICT 指定）。
+每次替换都会写进调用日志，可审计。
+"""
+import json, os, pathlib, sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from asr_fix import DICT_PATH, fix, load_dict  # noqa: E402
+
+DICT = pathlib.Path(DICT_PATH)
+
+
+def _load_raw() -> dict:
+    try:
+        return json.loads(DICT.read_text(encoding="utf-8"))
+    except Exception:
+        return {"_说明": "语音转写同音错词表：key=错误形态，value=正确词。"}
+
+
+def _save(d: dict) -> None:
+    DICT.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 1
+    cmd = sys.argv[1]
+    if cmd == "list":
+        rules = load_dict()
+        print(f"共 {len(rules)} 条规则（{DICT}）")
+        for k, v in sorted(rules.items()):
+            print(f"  {k} → {v}")
+    elif cmd == "add":
+        if len(sys.argv) < 4:
+            print("用法: asr_dict add <错词> <正确词>")
+            return 1
+        d = _load_raw()
+        d[sys.argv[2]] = sys.argv[3]
+        _save(d)
+        print(f"已加入: {sys.argv[2]} → {sys.argv[3]}（现 {len(load_dict())} 条）")
+    elif cmd == "rm":
+        d = _load_raw()
+        if sys.argv[2] in d:
+            del d[sys.argv[2]]
+            _save(d)
+            print(f"已删除: {sys.argv[2]}")
+        else:
+            print(f"没有这条规则: {sys.argv[2]}")
+    elif cmd == "test":
+        text = " ".join(sys.argv[2:])
+        fixed, subs = fix(text)
+        print(f"原文: {text}")
+        print(f"修正: {fixed}")
+        print(f"替换: {subs}")
+    else:
+        print(__doc__)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
