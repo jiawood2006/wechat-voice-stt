@@ -1,0 +1,28 @@
+# whisper.cpp STT 服务（systemd 单元模板）
+# 安装：把本文件里的 <USER> 换成你的用户名（如 ubuntu），然后：
+#   sudo cp whisper-stt.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now whisper-stt
+#   systemctl status whisper-stt
+# 只监听 127.0.0.1，不对外暴露；客户端通过 ssh 管道调用（见 scripts/stt_client.py）。
+[Unit]
+Description=whisper.cpp STT server (localhost only)
+After=network.target
+
+[Service]
+Type=simple
+User=<USER>
+WorkingDirectory=/home/<USER>/whisper/whisper.cpp
+Environment=LD_LIBRARY_PATH=/home/<USER>/whisper/whisper.cpp/build/src:/home/<USER>/whisper/whisper.cpp/build/ggml/src
+# -m 模型文件；-l zh 语言；--prompt 领域词提示（对专业术语识别有明显帮助）
+# -t 2 线程（2 核机器够用，别再调大，否则拖慢整机）
+# --convert 允许输入 mp3/m4a 等（内部调 ffmpeg）；--tmp-dir 放临时文件
+ExecStart=/home/<USER>/whisper/whisper.cpp/build/bin/whisper-server \
+  -m /home/<USER>/whisper/models/ggml-base.bin \
+  -l zh \
+  --prompt "以下是普通话的句子，请用简体中文转写。可能涉及：项目、投标、废标、签证、变更、索赔、竣工、资料、组卷、结算、工程、合同、进度款、发票、订单、佣金。" \
+  --host 127.0.0.1 --port 8004 --convert --tmp-dir /tmp -t 2
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
